@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<meta charset='utf-8'>
+<style>
+
+body {
+  font-size: 10px;
+  font-family: sans-serif;
+  font-weight: normal;
+}
+
+.state text {
+  font-size: 12px;
+  text-shadow: 1px 1px 2px rgba(0, 0 ,0, .5);
+  fill: #fff;
+  stroke: none;
+}
+
+[height="0"] {
+  display: none;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.state {
+  stroke: #fff;
+  shape-rendering: crispEdges;
+}
+
+.state rect {
+  -webkit-transition: fill .25s ease;
+          transition: fill .25s ease;
+}
+
+.x.axis path {
+  display: none;
+}
+
+.legend line {
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.d3-tip {
+  line-height: 1;
+  font-weight: bold;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 2px;
+}
+
+.d3-tip:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  width: 100%;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.8);
+  content: "\25BC";
+  position: absolute;
+  text-align: center;
+}
+
+.d3-tip.n:after {
+  margin: -1px 0 0 0;
+  top: 100%;
+  left: 0;
+}
+
+</style>
+<body>
+<script src='//d3js.org/d3.v3.min.js'></script>
+<script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+<script>
+
+var margin = {top: 20, right: 100, bottom: 30, left: 40},
+    width = 600 - margin.left - margin.right,
+    height = 600 - margin.top - margin.bottom;
+
+var x = d3.scale.ordinal()
+    .rangeRoundBands([0, width], .1);
+
+var y = d3.scale.linear()
+    .rangeRound([height, 0]);
+
+var color = d3.scale.ordinal()
+    .range(["#54a3f2",
+"#3ac260",
+"#3b6cdf",
+"#51c480",
+"#5e8ef4",
+"#359d50",
+"#3960b4",
+"#288043",
+"#4681d5",
+"#316f3b",
+"#365c9e",
+"#63c292",
+"#6886cb",
+"#4f9669",
+"#94a5e1",
+"#12684c",
+"#506297",
+"#3fc3b0",
+"#30679b",
+"#2fa180",
+"#5484b8",
+"#2a8775",
+"#5ea8da",
+"#30b7c1",
+"#27bbe6"]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient('bottom');
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient('left')
+    .tickFormat(d3.format('.0%'));
+
+var tip = d3.tip()
+  .attr('class', 'd3-tip')
+  .offset([-10, 0])
+  .html(function(d) {
+    return "<strong>Percent of Top 20 Cars:</strong> <span style='color:#ff9000'>" + ((y(d.y0) - y(d.y1))/height * 100).toFixed(2) + "%</span>";
+  })
+
+var svg = d3.select('body').append('svg')
+    .attr('width', width + margin.left + margin.right)
+    .attr('height', height + margin.top + margin.bottom)
+  .append('g')
+    .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+svg.call(tip);
+
+d3.csv('data.csv', function(error, data) {
+  if (error) throw error;
+
+  color.domain(d3.keys(data[0]).filter(function(key) { 
+    return key !== 'State'; 
+  }));
+
+  data.forEach(function(d) {
+    var y0 = 0;
+    var order = color.domain().map(function(d) { 
+      return d; 
+    }).sort(function(a, b) { 
+        return +d[a] - d[b]; 
+    });
+    
+    d.autos = order.map(function(auto) { 
+      return { 
+        auto: auto,
+        y0: y0,
+        y1: y0 += +d[auto]
+      }; 
+    });
+    
+    d.autos.forEach(function(d) { 
+      d.y0 /= y0; 
+      d.y1 /= y0; 
+    });
+    
+    d.total = d.autos[d.autos.length - 1].y1;
+
+  });
+
+  x.domain(data.map(function(d) { 
+    return d.State; 
+  }));
+  
+  y.domain([0, d3.max(data, function(d) { 
+    return d.total; 
+  })]);
+
+  svg.append('g')
+      .attr('class', 'x axis')
+      .attr('transform', 'translate(0,' + height + ')')
+      .call(xAxis);
+
+  svg.append('g')
+      .attr('class', 'y axis')
+      .call(yAxis);
+
+  var state = svg.selectAll('.state')
+      .data(data)
+    .enter().append('g')
+      .attr('class', 'state')
+      .attr('transform', function(d) { return 'translate(' + x(d.State) + ',0)'; });
+
+  state.selectAll('rect')
+      .data( function(d) { return d.autos; })
+    .enter().append('rect')
+      .attr('width', x.rangeBand())
+      .attr('y', function(d) { return y(d.y1); })
+      .attr('height', function(d) { return y(d.y0) - y(d.y1); })
+      .attr('data-car', function(d) {return d.auto})
+      .style('fill', function(d) { return color(d.auto); });    
+  
+  state.selectAll('text')
+      .data(function(d){ return d.autos; })
+    .enter().append('text')
+      .attr('width', x.rangeBand())
+      .attr('x', x.rangeBand()/2)
+      .style('text-anchor', 'middle')
+      .attr('y', function(d) { 
+        return y(d.y1)+(y(d.y0) - y(d.y1) + 7)/2;
+      })
+      .attr('height', function(d) { return y(d.y0) - y(d.y1); })
+      .text(function(d){ return d.auto; });
+
+  svg.selectAll('rect')
+    .on('mouseover', function(d){
+      d3.selectAll('[data-car="' + d.auto + '"]').style('fill', '#ff9000');
+      tip.show(d);
+    })
+    .on('mouseout', function(d){
+      d3.selectAll('[data-car="' + d.auto + '"]').style('fill', function(d) { return color(d.auto); }); 
+      tip.hide(d); 
+    })
+});
+
+
+</script>
